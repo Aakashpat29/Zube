@@ -472,8 +472,6 @@ const  getWatchHistory = asyncHandler(async (req, res)=> {
 })
 
 const clearWatchHistory = asyncHandler(async (req, res) => {
-
-    // ✅ Set watchHistory array to empty
     await User.findByIdAndUpdate(
         req.user._id,
         {
