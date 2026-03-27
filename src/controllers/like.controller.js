@@ -14,7 +14,7 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
 
     // Check if already liked
     const existingLike = await Like.findOne({
-        user: req.user._id,
+        likedBy: req.user._id,
         video: videoId
     });
 
@@ -29,7 +29,7 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
 
     // Like
     await Like.create({
-        user: req.user._id,
+        likedBy: req.user._id,
         video: videoId
     });
 
@@ -47,7 +47,7 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
     }
 
     const existingLike = await Like.findOne({
-        user: req.user._id,
+        likedBy: req.user._id,
         comment: commentId
     });
 
@@ -60,7 +60,7 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
     }
 
     await Like.create({
-        user: req.user._id,
+        likedBy: req.user._id,
         comment: commentId
     });
 
@@ -78,7 +78,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
     }
 
     const existingLike = await Like.findOne({
-        user: req.user._id,
+        likedBy: req.user._id,
         tweet: tweetId
     });
 
@@ -91,7 +91,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
     }
 
     await Like.create({
-        user: req.user._id,
+        likedBy: req.user._id,
         tweet: tweetId
     });
 
@@ -103,7 +103,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 const getLikedVideos = asyncHandler(async (req, res) => {
 
     const likedVideos = await Like.find({
-        user: req.user._id,
+        likedBy: req.user._id,
         video: { $ne: null }
     })
     .populate({

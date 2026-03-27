@@ -3,6 +3,7 @@ import { Video } from "../models/video.model.js";
 import fs from "fs";
 import {ApiError} from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -42,7 +43,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
     // Fetch videos from DB
     const videos = await Video.find(filter)
-        .populate("owner", "username avatar") // get channel info
+        .populate("owner", "username avatar fullName") // get channel info
         .sort(sortOptions)
         .skip((pageNumber - 1) * limitNumber) // pagination skip
         .limit(limitNumber);                  // pagination limit
@@ -64,14 +65,14 @@ const getAllVideos = asyncHandler(async (req, res) => {
 });
 
 const publishAVideo = asyncHandler(async (req, res)=>{
-    const {title, decription}= req.body;
+    const {title, description }= req.body;
 
     if (!title || !description) {
         throw new ApiError(400, "Title and description are required");
     }
 
-    const videoLocalPath = req.file?.videoFile?.[0]?.path;
-    const thumbnailLocalPath = req.file?.thumbnail?.[0]?.path;
+    const videoLocalPath = req.files?.videoFile?.[0]?.path;
+    const thumbnailLocalPath = req.files?.thumbnail?.[0]?.path;
 
     if(!videoLocalPath || !thumbnailLocalPath){
         throw new ApiError(400, "Video and thumbnail are required")
@@ -97,6 +98,8 @@ const publishAVideo = asyncHandler(async (req, res)=>{
         fs.unlinkSync(thumbnailLocalPath);
     }
     
+    console.log(req.files);
+    console.log(req.body);
 
     return res.status(201).json(
         new ApiResponse(
@@ -108,30 +111,33 @@ const publishAVideo = asyncHandler(async (req, res)=>{
 
 })
 
-const getVideoById = asyncHandler(async(req, res)=>{
+const getVideoById = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
 
-    const {videoId} = req.pramas
+  if (!videoId) {
+    throw new ApiError(400, "videoId is required");
+  }
 
-    if(!videoId){
-        throw new ApiError(400, "videoId is required")
-    }
+  const video = await Video.findById(videoId);
 
-    if (!video.isPublished && video.owner.toString() !== req.user?._id.toString()) {
-        throw new ApiError(403, "This video is private");
-    }
+  if (!video) {
+    throw new ApiError(404, "Video not found");
+  }
 
-    video.views += 1;
-    await video.save();
+  if (
+    !video.isPublished &&
+    (!req.user || video.owner.toString() !== req.user._id.toString())
+  ) {
+    throw new ApiError(403, "This video is private");
+  }
 
-    return res.status(200).json(
-        new ApiResponse(
-            200,
-            video,
-            "Video fetched successfully"
-        )
-    )
+  video.views += 1;
+  await video.save();
 
-})
+  return res.status(200).json(
+    new ApiResponse(200, video, "Video fetched successfully")
+  );
+});
 
 const updateVideo = asyncHandler(async(req, res)=>{
     const {videoId} = req.pramas
@@ -140,7 +146,7 @@ const updateVideo = asyncHandler(async(req, res)=>{
         throw new ApiError(400, "Video ID is required");
     }
 
-    const {title, decription} = req.body;
+    const {title, description } = req.body;
 
     const video = await Video.findById(videoId);
 

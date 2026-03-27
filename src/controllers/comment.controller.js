@@ -1,8 +1,9 @@
-import {Comment} from "../models/comment.model.js"
-import mongoose from "mongoose"
-import { ApiError } from "../utils/ApiError.js"
-import { ApiResponse } from "../utils/ApiResponse.js"
-import { asyncHandler } from "../utils/asyncHandler.js"
+import { Comment } from "../models/comment.model.js";
+import { Like } from "../models/like.model.js";
+import mongoose from "mongoose";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
 
@@ -17,23 +18,22 @@ const getVideoComments = asyncHandler(async (req, res) => {
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);
 
-    // Aggregate comments
     const comments = await Comment.aggregate([
 
-        // Match comments for this video
+        // 🎯 Match comments
         {
             $match: {
                 video: new mongoose.Types.ObjectId(videoId),
-                parentComment: null // only top-level comments
+                parentComment: null
             }
         },
 
-        // Sort latest first
+        // 🔽 Latest first
         {
             $sort: { createdAt: -1 }
         },
 
-        // Pagination
+        // 📄 Pagination
         {
             $skip: (pageNumber - 1) * limitNumber
         },
@@ -41,7 +41,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
             $limit: limitNumber
         },
 
-        // Join user (owner) data
+        // 👤 Owner details
         {
             $lookup: {
                 from: "users",
@@ -59,16 +59,56 @@ const getVideoComments = asyncHandler(async (req, res) => {
             }
         },
 
-        // Convert owner array → object
         {
             $addFields: {
                 owner: { $first: "$owner" }
+            }
+        },
+
+        // ❤️ JOIN LIKES
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "comment",
+                as: "likes"
+            }
+        },
+
+        // 🔢 Likes count
+        {
+            $addFields: {
+                likesCount: { $size: "$likes" }
+            }
+        },
+
+        // 👍 Check if user liked
+        {
+            $addFields: {
+                isLiked: {
+                    $in: [
+                        req.user._id,
+                        {
+                            $map: {
+                                input: "$likes",
+                                as: "like",
+                                in: "$$like.likedBy"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+
+        // 🧹 Clean response
+        {
+            $project: {
+                likes: 0
             }
         }
 
     ]);
 
-    // Count total comments (for pagination)
     const totalComments = await Comment.countDocuments({
         video: videoId,
         parentComment: null
@@ -104,16 +144,23 @@ const addComment = asyncHandler(async (req, res) => {
         content,
         video: videoId,
         owner: req.user._id,
-        parentComment: null // top-level comment
+        parentComment: null
     });
 
     const populatedComment = await Comment.findById(comment._id)
         .populate("owner", "username avatar");
 
+    // 🔥 add likes fields default
+    const responseComment = {
+        ...populatedComment.toObject(),
+        likesCount: 0,
+        isLiked: false
+    };
+
     return res.status(201).json(
         new ApiResponse(
             201,
-            populatedComment,
+            responseComment,
             "Comment added successfully"
         )
     );
@@ -144,7 +191,6 @@ const updateComment = asyncHandler(async (req, res) => {
     }
 
     comment.content = content;
-
     await comment.save();
 
     const updatedComment = await Comment.findById(commentId)
@@ -180,4 +226,4 @@ const deleteComment = asyncHandler(async (req, res) => {
     );
 });
 
-export {getVideoComments, addComment, updateComment, deleteComment}
+export { getVideoComments, addComment, updateComment, deleteComment };
