@@ -65,6 +65,25 @@ const getVideoComments = asyncHandler(async (req, res) => {
             }
         },
 
+        {
+            $lookup: {
+                from: "comments",
+                localField: "_id",
+                foreignField: "parentComment",
+                as: "replies"
+            }
+            },
+            {
+            $addFields: {
+                repliesCount: { $size: "$replies" }
+            }
+            },
+            {
+            $project: {
+                replies: 0
+            }
+        },
+
         // ❤️ JOIN LIKES
         {
             $lookup: {
@@ -87,7 +106,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
             $addFields: {
                 isLiked: {
                     $in: [
-                        req.user._id,
+                        new mongoose.Types.ObjectId(req.user._id),
                         {
                             $map: {
                                 input: "$likes",
@@ -129,12 +148,11 @@ const getVideoComments = asyncHandler(async (req, res) => {
 const addComment = asyncHandler(async (req, res) => {
 
     const { videoId } = req.params;
+    const { content, parentComment } = req.body;
 
     if (!videoId) {
         throw new ApiError(400, "Video ID is required");
     }
-
-    const { content } = req.body;
 
     if (!content || !content.trim()) {
         throw new ApiError(400, "Comment content is required");
@@ -144,23 +162,16 @@ const addComment = asyncHandler(async (req, res) => {
         content,
         video: videoId,
         owner: req.user._id,
-        parentComment: null
+        parentComment: parentComment || null // ✅ THIS IS KEY
     });
 
     const populatedComment = await Comment.findById(comment._id)
         .populate("owner", "username avatar");
 
-    // 🔥 add likes fields default
-    const responseComment = {
-        ...populatedComment.toObject(),
-        likesCount: 0,
-        isLiked: false
-    };
-
     return res.status(201).json(
         new ApiResponse(
             201,
-            responseComment,
+            populatedComment,
             "Comment added successfully"
         )
     );
@@ -226,4 +237,18 @@ const deleteComment = asyncHandler(async (req, res) => {
     );
 });
 
-export { getVideoComments, addComment, updateComment, deleteComment };
+const getReplies = asyncHandler(async (req, res) => {
+    const { commentId } = req.params;
+
+    const replies = await Comment.find({
+        parentComment: commentId
+    }).populate("owner", "username avatar");
+
+    return res.status(200).json(
+        new ApiResponse(200, replies, "Replies fetched")
+    );
+});
+
+
+
+export { getVideoComments, addComment, updateComment, deleteComment, getReplies };

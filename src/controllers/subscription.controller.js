@@ -81,4 +81,30 @@ const getSubscribedChannels = asyncHandler(async (req, res) => {
     );
 });
 
-export{toggleSubscription, getUserChannelSubscribers, getSubscribedChannels}
+const getChannelStats = asyncHandler(async (req, res) => {
+    const { channelId } = req.params;
+
+    if (!channelId) {
+        throw new ApiError(400, "Channel ID is required");
+    }
+
+    // count subscribers
+    const subscribersCount = await Subscription.countDocuments({
+        channel: new mongoose.Types.ObjectId(channelId)
+    });
+
+    // check if current user subscribed
+    const isSubscribed = await Subscription.findOne({
+        channel: channelId,
+        subscriber: req.user._id
+    });
+
+    return res.status(200).json(
+        new ApiResponse(200, {
+            subscribersCount,
+            isSubscribed: !!isSubscribed
+        }, "Channel stats fetched")
+    );
+});
+
+export{toggleSubscription, getUserChannelSubscribers, getSubscribedChannels, getChannelStats}
